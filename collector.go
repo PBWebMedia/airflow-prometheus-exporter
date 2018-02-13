@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"math"
+	"sync"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/prometheus/client_golang/prometheus"
@@ -11,14 +12,19 @@ import (
 
 type collector struct {
 	dbDsn           string
-	eventTotalCache map[string]map[string]map[string]float64
-	lastEventId     float64
+	eventTotalCache eventTotalCache
 	up              *prometheus.Desc
 	dagActive       *prometheus.Desc
 	dagPaused       *prometheus.Desc
 	eventTotal      *prometheus.Desc
 	scrapeFailures  *prometheus.Desc
 	failureCount    int
+}
+
+type eventTotalCache struct {
+	mutex       *sync.Mutex
+	data        map[string]map[string]map[string]float64
+	lastEventId float64
 }
 
 type dag struct {
@@ -50,13 +56,16 @@ func newFuncMetric(metricName string, docString string, labels []string) *promet
 
 func newCollector(dbDsn string) *collector {
 	return &collector{
-		dbDsn:           dbDsn,
-		eventTotalCache: make(map[string]map[string]map[string]float64),
-		up:              newFuncMetric("up", "able to contact airflow database", nil),
-		dagActive:       newFuncMetric("dag_active", "Is the DAG active?", []string{"dag"}),
-		dagPaused:       newFuncMetric("dag_paused", "Is the DAG paused?", []string{"dag"}),
-		eventTotal:      newFuncMetric("event_total", "Total events per DAG, task and event type", []string{"dag", "task", "event"}),
-		scrapeFailures:  newFuncMetric("scrape_failures_total", "Number of errors while scraping airflow database", nil),
+		dbDsn: dbDsn,
+		eventTotalCache: eventTotalCache{
+			mutex: &sync.Mutex{},
+			data:  make(map[string]map[string]map[string]float64),
+		},
+		up:             newFuncMetric("up", "able to contact airflow database", nil),
+		dagActive:      newFuncMetric("dag_active", "Is the DAG active?", []string{"dag"}),
+		dagPaused:      newFuncMetric("dag_paused", "Is the DAG paused?", []string{"dag"}),
+		eventTotal:     newFuncMetric("event_total", "Total events per DAG, task and event type", []string{"dag", "task", "event"}),
+		scrapeFailures: newFuncMetric("scrape_failures_total", "Number of errors while scraping airflow database", nil),
 	}
 }
 
@@ -112,7 +121,7 @@ func getData(c *collector) (metrics, error) {
 		return m, err
 	}
 
-	m.eventTotals, err = getEventTotalData(c, db)
+	m.eventTotals, err = getEventTotalData(&c.eventTotalCache, db)
 	if err != nil {
 		return m, err
 	}
@@ -142,7 +151,10 @@ func getDagData(db *sql.DB) ([]dag, error) {
 	return dagList, nil
 }
 
-func getEventTotalData(c *collector, db *sql.DB) ([]eventTotal, error) {
+func getEventTotalData(c *eventTotalCache, db *sql.DB) ([]eventTotal, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	stmt, err := db.Prepare("SELECT COUNT(*), COALESCE(dag_id, ''), COALESCE(task_id, ''), event, MAX(id) FROM log WHERE id > ? GROUP BY dag_id, task_id, event")
 	if err != nil {
 		return nil, err
@@ -166,17 +178,17 @@ func getEventTotalData(c *collector, db *sql.DB) ([]eventTotal, error) {
 
 		c.lastEventId = math.Max(id, c.lastEventId)
 
-		if c.eventTotalCache[et.dag] == nil {
-			c.eventTotalCache[et.dag] = make(map[string]map[string]float64)
+		if c.data[et.dag] == nil {
+			c.data[et.dag] = make(map[string]map[string]float64)
 		}
-		if c.eventTotalCache[et.dag][et.task] == nil {
-			c.eventTotalCache[et.dag][et.task] = make(map[string]float64)
+		if c.data[et.dag][et.task] == nil {
+			c.data[et.dag][et.task] = make(map[string]float64)
 		}
-		c.eventTotalCache[et.dag][et.task][et.event] += float64(et.count)
+		c.data[et.dag][et.task][et.event] += float64(et.count)
 	}
 
 	var etList []eventTotal
-	for dag, dagMap := range c.eventTotalCache {
+	for dag, dagMap := range c.data {
 		for task, taskMap := range dagMap {
 			for event, total := range taskMap {
 				etList = append(etList, eventTotal{
