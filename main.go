@@ -42,7 +42,7 @@ func loadEnv() {
 
 	databaseUser := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_USER", "airflow")
 	databasePassword := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_PASSWORD", "airflow")
-	databaseName := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_DATABASE", "airflow")
+	databaseName := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_NAME", "airflow")
 
 	addr = getEnvOr("AIRFLOW_PROMETHEUS_LISTEN_ADDR", ":9112")
 	dbDsn = databaseBackend + "://" + databaseUser + ":" + databasePassword + "@(" + databaseHost + ":" + databasePort + ")/" + databaseName
