@@ -15,11 +15,14 @@ var (
 )
 
 func main() {
+	log.Print("Starting airflow-exporter")
 	loadEnv()
 
+	log.Print("Connecting to: ", dbDsn)
 	c := newCollector(dbDsn)
 	prometheus.Register(c)
 
+	log.Print("Listening on: ", addr)
 	http.Handle("/metrics", promhttp.Handler())
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
