@@ -25,14 +25,24 @@ func main() {
 }
 
 func loadEnv() {
-	mysqlHost := getEnvOr("AIRFLOW_PROMETHEUS_MYSQL_HOST", "localhost")
-	mysqlPort := getEnvOr("AIRFLOW_PROMETHEUS_MYSQL_PORT", "3306")
-	mysqlUser := getEnvOr("AIRFLOW_PROMETHEUS_MYSQL_USER", "airflow")
-	mysqlPassword := getEnvOr("AIRFLOW_PROMETHEUS_MYSQL_PASSWORD", "airflow")
-	mysqlDb := getEnvOr("AIRFLOW_PROMETHEUS_MYSQL_DATABASE", "airflow")
+	databaseBackend := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_BACKEND", "mysql")
+	databaseHost := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_HOST", "localhost")
+	databasePort := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_PORT", "3306")
+
+	if databaseBackend == "mysql" {
+		databasePort = getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_PORT", "3306")
+	} else if databaseBackend == "postgresql" {
+		databasePort = getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_PORT", "5432")
+	} else {
+		log.Fatal("airflow-exporter: Unknown database backend specified: ", databaseBackend)
+	}
+
+	databaseUser := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_USER", "airflow")
+	databasePassword := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_PASSWORD", "airflow")
+	databaseName := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_DATABASE", "airflow")
 
 	addr = getEnvOr("AIRFLOW_PROMETHEUS_LISTEN_ADDR", ":9112")
-	dbDsn = mysqlUser + ":" + mysqlPassword + "@(" + mysqlHost + ":" + mysqlPort + ")/" + mysqlDb
+	dbDsn = databaseBackend + "://" + databaseUser + ":" + databasePassword + "@(" + databaseHost + ":" + databasePort + ")/" + databaseName
 }
 
 func getEnvOr(key string, defaultValue string) string {
