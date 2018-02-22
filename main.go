@@ -28,15 +28,16 @@ func main() {
 }
 
 func loadEnv() {
+	databaseDefaultPort := map[string]string {
+		"mysql": "3306",
+		"postgresql": "5432",
+	}
+
 	databaseBackend := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_BACKEND", "mysql")
 	databaseHost := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_HOST", "localhost")
-	databasePort := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_PORT", "3306")
+	databasePort := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_PORT", databaseDefaultPort[databaseBackend])
 
-	if databaseBackend == "mysql" {
-		databasePort = getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_PORT", "3306")
-	} else if databaseBackend == "postgresql" {
-		databasePort = getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_PORT", "5432")
-	} else {
+	if ! (databaseBackend == "mysql" || databaseBackend == "postgresql") {
 		log.Fatal("airflow-exporter: Unknown database backend specified: ", databaseBackend)
 	}
 
