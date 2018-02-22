@@ -1,5 +1,9 @@
 # Airflow prometheus exporter
 
+[![Docker Hub](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/r/pbweb/airflow-prometheus-exporter/)
+[![Docker Pulls](https://img.shields.io/docker/pulls/pbweb/airflow-prometheus-exporter.svg)]()
+[![Docker Stars](https://img.shields.io/docker/stars/pbweb/airflow-prometheus-exporter.svg)]()
+
 Export airflow metrics in [Prometheus](https://prometheus.io/) format.
 
 # Build
