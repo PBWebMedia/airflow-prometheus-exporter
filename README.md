@@ -14,11 +14,12 @@ Requires [Go](https://golang.org/doc/install). Tested with Go 1.9+.
 The exporter can be configured using environment variables. These are the defaults:
 
     AIRFLOW_PROMETHEUS_LISTEN_ADDR=:9112
-    AIRFLOW_PROMETHEUS_MYSQL_HOST=localhost
-    AIRFLOW_PROMETHEUS_MYSQL_PORT=3306
-    AIRFLOW_PROMETHEUS_MYSQL_USER=airflow
-    AIRFLOW_PROMETHEUS_MYSQL_PASSWORD=airflow
-    AIRFLOW_PROMETHEUS_MYSQL_DATABASE=airflow
+    AIRFLOW_PROMETHEUS_DATABASE_BACKEND=mysql
+    AIRFLOW_PROMETHEUS_DATABASE_HOST=localhost
+    AIRFLOW_PROMETHEUS_DATABASE_PORT=3306
+    AIRFLOW_PROMETHEUS_DATABASE_USER=airflow
+    AIRFLOW_PROMETHEUS_DATABASE_PASSWORD=airflow
+    AIRFLOW_PROMETHEUS_DATABASE_NAME=airflow
 
 Run the exporter:
 
@@ -40,7 +41,7 @@ Or using docker-compose:
         image: pbweb/airflow-prometheus-exporter
         restart: always
         environment:
-            - "AIRFLOW_PROMETHEUS_MYSQL_HOST=mysql.airflow.lan"
+            - "AIRFLOW_PROMETHEUS_DATABASE_HOST=mysql.airflow.lan"
         ports:
             - "9112:9112"
 
