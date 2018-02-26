@@ -10,16 +10,17 @@ import (
 )
 
 var (
-	addr  string
-	dbDsn string
+	addr     string
+	dbDriver string
+	dbDsn    string
 )
 
 func main() {
 	log.Print("Starting airflow-exporter")
 	loadEnv()
 
-	log.Print("Connecting to: ", dbDsn)
-	c := newCollector(dbDsn)
+	log.Print("Connecting to: ", dbDriver, "://", dbDsn)
+	c := newCollector(dbDriver, dbDsn)
 	prometheus.Register(c)
 
 	log.Print("Listening on: ", addr)
@@ -28,8 +29,8 @@ func main() {
 }
 
 func loadEnv() {
-	databaseDefaultPort := map[string]string {
-		"mysql": "3306",
+	databaseDefaultPort := map[string]string{
+		"mysql":      "3306",
 		"postgresql": "5432",
 	}
 
@@ -46,7 +47,8 @@ func loadEnv() {
 	databaseName := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_NAME", "airflow")
 
 	addr = getEnvOr("AIRFLOW_PROMETHEUS_LISTEN_ADDR", ":9112")
-	dbDsn = databaseBackend + "://" + databaseUser + ":" + databasePassword + "@(" + databaseHost + ":" + databasePort + ")/" + databaseName
+	dbDriver = databaseBackend
+	dbDsn = databaseUser + ":" + databasePassword + "@(" + databaseHost + ":" + databasePort + ")/" + databaseName
 }
 
 func getEnvOr(key string, defaultValue string) string {
