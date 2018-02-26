@@ -12,6 +12,7 @@ import (
 )
 
 type collector struct {
+	dbDriver        string
 	dbDsn           string
 	eventTotalCache eventTotalCache
 	up              *prometheus.Desc
@@ -55,9 +56,10 @@ func newFuncMetric(metricName string, docString string, labels []string) *promet
 	return prometheus.NewDesc(prometheus.BuildFQName(metricsNamespace, "", metricName), docString, labels, nil)
 }
 
-func newCollector(dbDsn string) *collector {
+func newCollector(dbDriver string, dbDsn string) *collector {
 	return &collector{
-		dbDsn: dbDsn,
+		dbDriver: dbDriver,
+		dbDsn:    dbDsn,
 		eventTotalCache: eventTotalCache{
 			mutex: &sync.Mutex{},
 			data:  make(map[string]map[string]map[string]float64),
@@ -86,7 +88,7 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		up = 0.0
 		c.failureCount++
 
-		log.Println("Error while collecting data from mysql: " + err.Error())
+		log.Println("Error while collecting data from database: " + err.Error())
 	}
 
 	ch <- prometheus.MustNewConstMetric(c.up, prometheus.GaugeValue, up)
@@ -111,7 +113,7 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 func getData(c *collector) (metrics, error) {
 	var m metrics
 
-	db, err := sql.Open("mysql", c.dbDsn)
+	db, err := sql.Open(c.dbDriver, c.dbDsn)
 	if err != nil {
 		return m, err
 	}
