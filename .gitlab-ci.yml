@@ -1,15 +1,28 @@
 image: docker:latest
 
 stages:
+  - validate
   - build
   - image
 
 variables:
   DOCKER_DRIVER: overlay2
 
+lint:
+  stage: validate
+  image: golang:1.10.0-alpine3.7
+  before_script:
+    - go version
+  script:
+    - apk add --no-cache git
+    - go get -u github.com/golang/lint/golint
+    - golint -set_exit_status
+
 compile:
   stage: build
   image: golang:1.10.0-alpine3.7
+  before_script:
+    - go version
   script:
     - apk add --no-cache git
     - go get || true
