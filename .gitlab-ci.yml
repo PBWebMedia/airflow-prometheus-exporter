@@ -9,8 +9,9 @@ variables:
 
 compile:
   stage: build
-  image: $CI_REGISTRY/docker/images/go-build:latest
+  image: golang:1.10.0-alpine3.7
   script:
+    - apk add --no-cache git
     - go get || true
     - CGO_ENABLED=0 go build -o airflow-prometheus-exporter .
   artifacts:
@@ -22,7 +23,10 @@ compile:
 
 build-docker:
   stage: image
+  services:
+    - docker:dind
   before_script:
+    - docker info
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
   script:
     - if [ "${CI_COMMIT_REF_SLUG}" == "master" ]; then IMAGE_TAG="latest"; else IMAGE_TAG="${CI_COMMIT_REF_SLUG}"; fi
@@ -33,6 +37,7 @@ build-docker:
   variables:
     GIT_STRATEGY: none
     DOCKER_DRIVER: overlay2
+    DOCKER_HOST: tcp://localhost:2375
   tags:
     - docker-images
 
