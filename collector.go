@@ -26,7 +26,7 @@ type collector struct {
 type eventTotalCache struct {
 	mutex       *sync.Mutex
 	data        map[string]map[string]map[string]float64
-	lastEventId float64
+	lastEventID float64
 }
 
 type dag struct {
@@ -164,7 +164,7 @@ func getEventTotalData(c *eventTotalCache, db *sql.DB) ([]eventTotal, error) {
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query(c.lastEventId)
+	rows, err := stmt.Query(c.lastEventID)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func getEventTotalData(c *eventTotalCache, db *sql.DB) ([]eventTotal, error) {
 			return nil, err
 		}
 
-		c.lastEventId = math.Max(id, c.lastEventId)
+		c.lastEventID = math.Max(id, c.lastEventID)
 
 		if c.data[et.dag] == nil {
 			c.data[et.dag] = make(map[string]map[string]float64)
