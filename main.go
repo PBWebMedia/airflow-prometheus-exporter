@@ -16,6 +16,7 @@ var (
 )
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.Print("Starting airflow-exporter")
 	loadEnv()
 
