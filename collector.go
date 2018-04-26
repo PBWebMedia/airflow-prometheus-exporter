@@ -77,7 +77,7 @@ func newCollector(dbDriver string, dbDsn string) *collector {
 		dagPaused:      newFuncMetric("dag_paused", "Is the DAG paused?", []string{"dag"}),
 		eventTotal:     newFuncMetric("event_total", "Total events per DAG, task and event type", []string{"dag", "task", "event"}),
 		scrapeFailures: newFuncMetric("scrape_failures_total", "Number of errors while scraping airflow database", nil),
-		dagRunStates:   newFuncMetric("dagrun_state", "Number of DAG_RUNs per DAG and state", []string{"dag", "state"}),
+		dagRunStates:   newFuncMetric("dag_run_state", "Number of DAG_RUNs per DAG and state", []string{"dag", "state"}),
 	}
 }
 
@@ -236,16 +236,7 @@ func defaultDagRunStates() map[string]float64 {
 
 func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
 
-	preparedStmt := "SELECT COUNT(*), COALESCE(dag_id, ''), COALESCE(state, '') FROM dag_run GROUP BY dag_id, state"
-
-	stmt, err := db.Prepare(preparedStmt)
-
-	if err != nil {
-		return nil, err
-	}
-	defer stmt.Close()
-
-	rows, err := stmt.Query()
+	rows, err := db.Query("SELECT COUNT(*), COALESCE(dag_id, ''), COALESCE(state, '') FROM dag_run GROUP BY dag_id, state")
 	if err != nil {
 		return nil, err
 	}
