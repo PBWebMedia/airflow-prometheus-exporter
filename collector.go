@@ -20,6 +20,7 @@ type collector struct {
 	dagPaused       *prometheus.Desc
 	eventTotal      *prometheus.Desc
 	scrapeFailures  *prometheus.Desc
+	dagRunStates    *prometheus.Desc
 	failureCount    int
 }
 
@@ -43,9 +44,16 @@ type eventTotal struct {
 	event string
 }
 
+type dagRunState struct {
+	count float64
+	dag   string
+	state string
+}
+
 type metrics struct {
-	dagList     []dag
-	eventTotals []eventTotal
+	dagList      []dag
+	eventTotals  []eventTotal
+	dagRunStates []dagRunState
 }
 
 const metricsNamespace = "airflow"
@@ -69,6 +77,7 @@ func newCollector(dbDriver string, dbDsn string) *collector {
 		dagPaused:      newFuncMetric("dag_paused", "Is the DAG paused?", []string{"dag"}),
 		eventTotal:     newFuncMetric("event_total", "Total events per DAG, task and event type", []string{"dag", "task", "event"}),
 		scrapeFailures: newFuncMetric("scrape_failures_total", "Number of errors while scraping airflow database", nil),
+		dagRunStates:   newFuncMetric("dagrun_state", "Count of DAG_RUNs per DAG and state", []string{"dag", "state"}),
 	}
 }
 
@@ -78,6 +87,7 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.dagPaused
 	ch <- c.eventTotal
 	ch <- c.scrapeFailures
+	ch <- c.dagRunStates
 }
 
 func (c *collector) Collect(ch chan<- prometheus.Metric) {
@@ -107,6 +117,10 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(c.eventTotal, prometheus.CounterValue, et.count, et.dag, et.task, et.event)
 	}
 
+	for _, st := range m.dagRunStates {
+		ch <- prometheus.MustNewConstMetric(c.dagRunStates, prometheus.CounterValue, st.count, st.dag, st.state)
+	}
+
 	return
 }
 
@@ -125,6 +139,11 @@ func getData(c *collector) (metrics, error) {
 	}
 
 	m.eventTotals, err = getEventTotalData(&c.eventTotalCache, db)
+	if err != nil {
+		return m, err
+	}
+
+	m.dagRunStates, err = getDagRunStateData(db)
 	if err != nil {
 		return m, err
 	}
@@ -205,4 +224,35 @@ func getEventTotalData(c *eventTotalCache, db *sql.DB) ([]eventTotal, error) {
 	}
 
 	return etList, nil
+}
+
+func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
+
+	preparedStmt := "SELECT COUNT(*), COALESCE(dag_id, ''), COALESCE(state, '') FROM dag_run GROUP BY dag_id, state"
+
+	stmt, err := db.Prepare(preparedStmt)
+
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var drsList []dagRunState
+	for rows.Next() {
+		var drs dagRunState
+
+		err := rows.Scan(&drs.count, &drs.dag, &drs.state)
+		if err != nil {
+			return nil, err
+		}
+		drsList = append(drsList, drs)
+	}
+
+	return drsList, nil
 }
