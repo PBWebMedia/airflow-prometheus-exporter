@@ -77,7 +77,7 @@ func newCollector(dbDriver string, dbDsn string) *collector {
 		dagPaused:      newFuncMetric("dag_paused", "Is the DAG paused?", []string{"dag"}),
 		eventTotal:     newFuncMetric("event_total", "Total events per DAG, task and event type", []string{"dag", "task", "event"}),
 		scrapeFailures: newFuncMetric("scrape_failures_total", "Number of errors while scraping airflow database", nil),
-		dagRunStates:   newFuncMetric("dagrun_state", "Count of DAG_RUNs per DAG and state", []string{"dag", "state"}),
+		dagRunStates:   newFuncMetric("dagrun_state", "Number of DAG_RUNs per DAG and state", []string{"dag", "state"}),
 	}
 }
 
@@ -118,7 +118,7 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	for _, st := range m.dagRunStates {
-		ch <- prometheus.MustNewConstMetric(c.dagRunStates, prometheus.CounterValue, st.count, st.dag, st.state)
+		ch <- prometheus.MustNewConstMetric(c.dagRunStates, prometheus.GaugeValue, st.count, st.dag, st.state)
 	}
 
 	return
@@ -226,6 +226,14 @@ func getEventTotalData(c *eventTotalCache, db *sql.DB) ([]eventTotal, error) {
 	return etList, nil
 }
 
+func defaultDagRunStates() map[string]float64 {
+	return map[string]float64{
+		"success": 0.0,
+		"failed":  0.0,
+		"running": 0.0,
+	}
+}
+
 func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
 
 	preparedStmt := "SELECT COUNT(*), COALESCE(dag_id, ''), COALESCE(state, '') FROM dag_run GROUP BY dag_id, state"
@@ -243,7 +251,7 @@ func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
 	}
 	defer rows.Close()
 
-	var drsList []dagRunState
+	var drsRunStates = make(map[string]map[string]float64)
 	for rows.Next() {
 		var drs dagRunState
 
@@ -251,7 +259,22 @@ func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
 		if err != nil {
 			return nil, err
 		}
-		drsList = append(drsList, drs)
+
+		if drsRunStates[drs.dag] == nil {
+			drsRunStates[drs.dag] = defaultDagRunStates()
+		}
+		drsRunStates[drs.dag][drs.state] = float64(drs.count)
+	}
+
+	var drsList []dagRunState
+	for dag, dagStates := range drsRunStates {
+		for state, count := range dagStates {
+			drsList = append(drsList, dagRunState{
+				count: count,
+				dag:   dag,
+				state: state,
+			})
+		}
 	}
 
 	return drsList, nil
