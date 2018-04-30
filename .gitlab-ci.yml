@@ -82,7 +82,6 @@ build-docker:
   variables:
     GIT_STRATEGY: none
     DOCKER_DRIVER: overlay2
-    DOCKER_HOST: tcp://localhost:2375
   tags:
     - docker-images
 
