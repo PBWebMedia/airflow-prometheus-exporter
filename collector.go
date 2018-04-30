@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"log"
 	"math"
-	"os"
 	"sync"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -156,14 +155,13 @@ func getDagData(db *sql.DB) ([]dag, error) {
 }
 
 func formulateEventTotalDataPreparedStatement() string {
-	databaseBackend := os.Getenv("AIRFLOW_PROMETHEUS_DATABASE_BACKEND")
 	databasePreparedSyntax := map[string]string{
 		"mysql":    "WHERE id > ?",
 		"postgres": "WHERE id > $1",
 	}
 
 	preparedStmt := "SELECT COUNT(*), COALESCE(dag_id, ''), COALESCE(task_id, ''), event, MAX(id) FROM log "
-	preparedStmt += databasePreparedSyntax[databaseBackend]
+	preparedStmt += databasePreparedSyntax[dbDriver]
 	preparedStmt += " GROUP BY dag_id, task_id, event"
 
 	return preparedStmt
