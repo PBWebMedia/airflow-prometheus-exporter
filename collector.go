@@ -77,7 +77,7 @@ func newCollector(dbDriver string, dbDsn string) *collector {
 		dagPaused:      newFuncMetric("dag_paused", "Is the DAG paused?", []string{"dag"}),
 		eventTotal:     newFuncMetric("event_total", "Total events per DAG, task and event type", []string{"dag", "task", "event"}),
 		scrapeFailures: newFuncMetric("scrape_failures_total", "Number of errors while scraping airflow database", nil),
-		dagRunStates:   newFuncMetric("dag_run_state", "Number of DAG_RUNs per DAG and state", []string{"dag", "state"}),
+		dagRunStates:   newFuncMetric("dag_run_state", "Number of DAG runs per DAG and state", []string{"dag", "state"}),
 	}
 }
 
