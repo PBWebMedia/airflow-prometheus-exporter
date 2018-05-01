@@ -27,7 +27,7 @@ type collector struct {
 type eventTotalCache struct {
 	mutex       *sync.Mutex
 	data        map[string]map[string]map[string]float64
-	lastEventId float64
+	lastEventID float64
 }
 
 type dag struct {
@@ -173,17 +173,33 @@ func getDagData(db *sql.DB) ([]dag, error) {
 	return dagList, nil
 }
 
+func formulateEventTotalDataPreparedStatement() string {
+	databasePreparedSyntax := map[string]string{
+		"mysql":    "WHERE id > ?",
+		"postgres": "WHERE id > $1",
+	}
+
+	preparedStmt := "SELECT COUNT(*), COALESCE(dag_id, ''), COALESCE(task_id, ''), event, MAX(id) FROM log "
+	preparedStmt += databasePreparedSyntax[dbDriver]
+	preparedStmt += " GROUP BY dag_id, task_id, event"
+
+	return preparedStmt
+}
+
 func getEventTotalData(c *eventTotalCache, db *sql.DB) ([]eventTotal, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	stmt, err := db.Prepare("SELECT COUNT(*), COALESCE(dag_id, ''), COALESCE(task_id, ''), event, MAX(id) FROM log WHERE id > ? GROUP BY dag_id, task_id, event")
+	preparedStmt := formulateEventTotalDataPreparedStatement()
+
+	stmt, err := db.Prepare(preparedStmt)
+
 	if err != nil {
 		return nil, err
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query(c.lastEventId)
+	rows, err := stmt.Query(c.lastEventID)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +214,7 @@ func getEventTotalData(c *eventTotalCache, db *sql.DB) ([]eventTotal, error) {
 			return nil, err
 		}
 
-		c.lastEventId = math.Max(id, c.lastEventId)
+		c.lastEventID = math.Max(id, c.lastEventID)
 
 		if c.data[et.dag] == nil {
 			c.data[et.dag] = make(map[string]map[string]float64)

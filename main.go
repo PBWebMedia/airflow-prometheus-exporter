@@ -16,6 +16,7 @@ var (
 )
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.Print("Starting airflow-exporter")
 	loadEnv()
 
@@ -30,15 +31,15 @@ func main() {
 
 func loadEnv() {
 	databaseDefaultPort := map[string]string{
-		"mysql":      "3306",
-		"postgresql": "5432",
+		"mysql":    "3306",
+		"postgres": "5432",
 	}
 
 	databaseBackend := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_BACKEND", "mysql")
 	databaseHost := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_HOST", "localhost")
 	databasePort := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_PORT", databaseDefaultPort[databaseBackend])
 
-	if ! (databaseBackend == "mysql" || databaseBackend == "postgresql") {
+	if !(databaseBackend == "mysql" || databaseBackend == "postgres") {
 		log.Fatal("airflow-exporter: Unknown database backend specified: ", databaseBackend)
 	}
 
@@ -48,7 +49,12 @@ func loadEnv() {
 
 	addr = getEnvOr("AIRFLOW_PROMETHEUS_LISTEN_ADDR", ":9112")
 	dbDriver = databaseBackend
-	dbDsn = databaseUser + ":" + databasePassword + "@(" + databaseHost + ":" + databasePort + ")/" + databaseName
+
+	if databaseBackend == "mysql" {
+		dbDsn = databaseUser + ":" + databasePassword + "@(" + databaseHost + ":" + databasePort + ")/" + databaseName
+	} else if databaseBackend == "postgres" {
+		dbDsn = "user=" + databaseUser + " password=" + databasePassword + " host=" + databaseHost + " port=" + databasePort + " dbname=" + databaseName + " sslmode=disable"
+	}
 }
 
 func getEnvOr(key string, defaultValue string) string {
