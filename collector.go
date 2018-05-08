@@ -21,6 +21,7 @@ type collector struct {
 	eventTotal      *prometheus.Desc
 	scrapeFailures  *prometheus.Desc
 	dagRunStates    *prometheus.Desc
+	poolList        *prometheus.Desc
 	failureCount    int
 }
 
@@ -50,10 +51,16 @@ type dagRunState struct {
 	state string
 }
 
+type pool struct {
+	name string
+	size float64
+}
+
 type metrics struct {
 	dagList      []dag
 	eventTotals  []eventTotal
 	dagRunStates []dagRunState
+	poolList     []pool
 }
 
 const metricsNamespace = "airflow"
@@ -78,6 +85,7 @@ func newCollector(dbDriver string, dbDsn string) *collector {
 		eventTotal:     newFuncMetric("event_total", "Total events per DAG, task and event type", []string{"dag", "task", "event"}),
 		scrapeFailures: newFuncMetric("scrape_failures_total", "Number of errors while scraping airflow database", nil),
 		dagRunStates:   newFuncMetric("dag_run_state", "Number of DAG runs per DAG and state", []string{"dag", "state"}),
+		poolList:       newFuncMetric("pool", "Pool name with its size", []string{"name", "size"}),
 	}
 }
 
@@ -88,6 +96,7 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.eventTotal
 	ch <- c.scrapeFailures
 	ch <- c.dagRunStates
+	ch <- c.poolList
 }
 
 func (c *collector) Collect(ch chan<- prometheus.Metric) {
@@ -121,6 +130,10 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(c.dagRunStates, prometheus.GaugeValue, st.count, st.dag, st.state)
 	}
 
+	for _, st := range m.poolList {
+		ch <- prometheus.MustNewConstMetric(c.poolList, prometheus.GaugeValue, st.size, st.name)
+	}
+
 	return
 }
 
@@ -144,6 +157,11 @@ func getData(c *collector) (metrics, error) {
 	}
 
 	m.dagRunStates, err = getDagRunStateData(db)
+	if err != nil {
+		return m, err
+	}
+
+	m.poolList, err = getPoolData(db)
 	if err != nil {
 		return m, err
 	}
@@ -285,4 +303,25 @@ func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
 	}
 
 	return drsList, nil
+}
+
+func getPoolData(db *sql.DB) ([]pool, error) {
+
+	rows, err := db.Query("SELECT pool, slots FROM slot_pool")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var poolList []pool
+	for rows.Next() {
+		var pl pool
+
+		err := rows.Scan(&pl.name, &pl.size)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return poolList, nil
 }
