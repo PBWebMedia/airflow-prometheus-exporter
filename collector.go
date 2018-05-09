@@ -21,7 +21,7 @@ type collector struct {
 	eventTotal      *prometheus.Desc
 	scrapeFailures  *prometheus.Desc
 	dagRunStates    *prometheus.Desc
-	poolList        *prometheus.Desc
+	poolSlots       *prometheus.Desc
 	failureCount    int
 }
 
@@ -51,7 +51,7 @@ type dagRunState struct {
 	state string
 }
 
-type pool struct {
+type poolSlot struct {
 	name string
 	size float64
 }
@@ -60,7 +60,7 @@ type metrics struct {
 	dagList      []dag
 	eventTotals  []eventTotal
 	dagRunStates []dagRunState
-	poolList     []pool
+	poolSlots    []poolSlot
 }
 
 const metricsNamespace = "airflow"
@@ -85,7 +85,7 @@ func newCollector(dbDriver string, dbDsn string) *collector {
 		eventTotal:     newFuncMetric("event_total", "Total events per DAG, task and event type", []string{"dag", "task", "event"}),
 		scrapeFailures: newFuncMetric("scrape_failures_total", "Number of errors while scraping airflow database", nil),
 		dagRunStates:   newFuncMetric("dag_run_state", "Number of DAG runs per DAG and state", []string{"dag", "state"}),
-		poolList:       newFuncMetric("pool", "Pool name with its size", []string{"name"}),
+		poolSlots:      newFuncMetric("pool_slots", "Pool name with slot size", []string{"name"}),
 	}
 }
 
@@ -96,7 +96,7 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.eventTotal
 	ch <- c.scrapeFailures
 	ch <- c.dagRunStates
-	ch <- c.poolList
+	ch <- c.poolSlots
 }
 
 func (c *collector) Collect(ch chan<- prometheus.Metric) {
@@ -130,8 +130,8 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(c.dagRunStates, prometheus.GaugeValue, st.count, st.dag, st.state)
 	}
 
-	for _, st := range m.poolList {
-		ch <- prometheus.MustNewConstMetric(c.poolList, prometheus.GaugeValue, st.size, st.name)
+	for _, st := range m.poolSlots {
+		ch <- prometheus.MustNewConstMetric(c.poolSlots, prometheus.GaugeValue, st.size, st.name)
 	}
 
 	return
@@ -161,7 +161,7 @@ func getData(c *collector) (metrics, error) {
 		return m, err
 	}
 
-	m.poolList, err = getPoolData(db)
+	m.poolSlots, err = getPoolSlotData(db)
 	if err != nil {
 		return m, err
 	}
@@ -305,25 +305,25 @@ func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
 	return drsList, nil
 }
 
-func getPoolData(db *sql.DB) ([]pool, error) {
+func getPoolSlotData(db *sql.DB) ([]poolSlot, error) {
 
-	rows, err := db.Query("SELECT pool, slots FROM slot_pool")
+	rows, err := db.Query("SELECT poolSlot, slots FROM slot_pool")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var poolList []pool
+	var poolSlots []poolSlot
 	for rows.Next() {
-		var pl pool
+		var ps poolSlot
 
-		err := rows.Scan(&pl.name, &pl.size)
+		err := rows.Scan(&ps.name, &ps.size)
 		if err != nil {
 			return nil, err
 		}
 
-		poolList = append(poolList, pl)
+		poolSlots = append(poolSlots, ps)
 	}
 
-	return poolList, nil
+	return poolSlots, nil
 }
