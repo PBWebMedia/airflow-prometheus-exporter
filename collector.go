@@ -307,7 +307,7 @@ func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
 
 func getPoolSlotData(db *sql.DB) ([]poolSlot, error) {
 
-	rows, err := db.Query("SELECT poolSlot, slots FROM slot_pool")
+	rows, err := db.Query("SELECT pool, slots FROM slot_pool")
 	if err != nil {
 		return nil, err
 	}
