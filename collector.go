@@ -85,7 +85,7 @@ func newCollector(dbDriver string, dbDsn string) *collector {
 		eventTotal:     newFuncMetric("event_total", "Total events per DAG, task and event type", []string{"dag", "task", "event"}),
 		scrapeFailures: newFuncMetric("scrape_failures_total", "Number of errors while scraping airflow database", nil),
 		dagRunStates:   newFuncMetric("dag_run_state", "Number of DAG runs per DAG and state", []string{"dag", "state"}),
-		poolList:       newFuncMetric("pool", "Pool name with its size", []string{"name", "size"}),
+		poolList:       newFuncMetric("pool", "Pool name with its size", []string{"name"}),
 	}
 }
 
@@ -321,6 +321,8 @@ func getPoolData(db *sql.DB) ([]pool, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		poolList = append(poolList, pl)
 	}
 
 	return poolList, nil
