@@ -21,6 +21,7 @@ type collector struct {
 	eventTotal      *prometheus.Desc
 	scrapeFailures  *prometheus.Desc
 	dagRunStates    *prometheus.Desc
+	poolSlots       *prometheus.Desc
 	failureCount    int
 }
 
@@ -50,10 +51,16 @@ type dagRunState struct {
 	state string
 }
 
+type poolSlot struct {
+	name string
+	size float64
+}
+
 type metrics struct {
 	dagList      []dag
 	eventTotals  []eventTotal
 	dagRunStates []dagRunState
+	poolSlots    []poolSlot
 }
 
 const metricsNamespace = "airflow"
@@ -78,6 +85,7 @@ func newCollector(dbDriver string, dbDsn string) *collector {
 		eventTotal:     newFuncMetric("event_total", "Total events per DAG, task and event type", []string{"dag", "task", "event"}),
 		scrapeFailures: newFuncMetric("scrape_failures_total", "Number of errors while scraping airflow database", nil),
 		dagRunStates:   newFuncMetric("dag_run_state", "Number of DAG runs per DAG and state", []string{"dag", "state"}),
+		poolSlots:      newFuncMetric("pool_slots", "Pool name with slot size", []string{"name"}),
 	}
 }
 
@@ -88,6 +96,7 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.eventTotal
 	ch <- c.scrapeFailures
 	ch <- c.dagRunStates
+	ch <- c.poolSlots
 }
 
 func (c *collector) Collect(ch chan<- prometheus.Metric) {
@@ -121,6 +130,10 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(c.dagRunStates, prometheus.GaugeValue, st.count, st.dag, st.state)
 	}
 
+	for _, st := range m.poolSlots {
+		ch <- prometheus.MustNewConstMetric(c.poolSlots, prometheus.GaugeValue, st.size, st.name)
+	}
+
 	return
 }
 
@@ -144,6 +157,11 @@ func getData(c *collector) (metrics, error) {
 	}
 
 	m.dagRunStates, err = getDagRunStateData(db)
+	if err != nil {
+		return m, err
+	}
+
+	m.poolSlots, err = getPoolSlotData(db)
 	if err != nil {
 		return m, err
 	}
@@ -285,4 +303,27 @@ func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
 	}
 
 	return drsList, nil
+}
+
+func getPoolSlotData(db *sql.DB) ([]poolSlot, error) {
+
+	rows, err := db.Query("SELECT pool, slots FROM slot_pool")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var poolSlots []poolSlot
+	for rows.Next() {
+		var ps poolSlot
+
+		err := rows.Scan(&ps.name, &ps.size)
+		if err != nil {
+			return nil, err
+		}
+
+		poolSlots = append(poolSlots, ps)
+	}
+
+	return poolSlots, nil
 }
