@@ -57,14 +57,14 @@ func loadEnv() {
 		dbDsnPasswordMasked = databaseUser + ":********@(" + databaseHost + ":" + databasePort + ")/" + databaseName
 	} else if databaseBackend == "postgres" {
 		properties := map[string]string{
-			"user": databaseUser,
-			"password": databasePassword,
-			"host": databaseHost,
-			"port": databasePort,
-			"dbname": databaseName,
-			"sslmode": getEnvOr("AIRFLOW_PROMETHEUS_POSTGRES_SSL_MODE", "disable"),
-			"sslcert": getEnvOr("AIRFLOW_PROMETHEUS_POSTGRES_SSL_CERT", ""),
-			"sslkey": getEnvOr("AIRFLOW_PROMETHEUS_POSTGRES_SSL_KEY", ""),
+			"user":        databaseUser,
+			"password":    databasePassword,
+			"host":        databaseHost,
+			"port":        databasePort,
+			"dbname":      databaseName,
+			"sslmode":     getEnvOr("AIRFLOW_PROMETHEUS_POSTGRES_SSL_MODE", "disable"),
+			"sslcert":     getEnvOr("AIRFLOW_PROMETHEUS_POSTGRES_SSL_CERT", ""),
+			"sslkey":      getEnvOr("AIRFLOW_PROMETHEUS_POSTGRES_SSL_KEY", ""),
 			"sslrootcert": getEnvOr("AIRFLOW_PROMETHEUS_POSTGRES_SSL_ROOT_CERT", ""),
 		}
 
@@ -89,7 +89,7 @@ func createPostgresDsn(properties map[string]string) string {
 	list := make([]string, 0)
 	for key, value := range properties {
 		if value != "" {
-			list = append(list, key + "=" + value)
+			list = append(list, key+"="+value)
 		}
 	}
 
