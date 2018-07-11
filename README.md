@@ -25,6 +25,13 @@ The exporter can be configured using environment variables. These are the defaul
     AIRFLOW_PROMETHEUS_DATABASE_PASSWORD=airflow
     AIRFLOW_PROMETHEUS_DATABASE_NAME=airflow
 
+When using postgres, SSL can be enabled and configured using:
+    
+    AIRFLOW_PROMETHEUS_POSTGRES_SSL_MODE=verify-full
+    AIRFLOW_PROMETHEUS_POSTGRES_SSL_CERT=/path/to/certificate
+    AIRFLOW_PROMETHEUS_POSTGRES_SSL_KEY=/path/to/key
+    AIRFLOW_PROMETHEUS_POSTGRES_SSL_ROOT_CERT=/path/to/root_cert
+
 Run the exporter:
 
     ./airflow-prometheus-exporter

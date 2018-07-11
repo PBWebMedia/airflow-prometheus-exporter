@@ -7,6 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"os"
+	"strings"
 )
 
 var (
@@ -55,8 +56,24 @@ func loadEnv() {
 		dbDsn = databaseUser + ":" + databasePassword + "@(" + databaseHost + ":" + databasePort + ")/" + databaseName
 		dbDsnPasswordMasked = databaseUser + ":********@(" + databaseHost + ":" + databasePort + ")/" + databaseName
 	} else if databaseBackend == "postgres" {
-		dbDsn = "user=" + databaseUser + " password=" + databasePassword + " host=" + databaseHost + " port=" + databasePort + " dbname=" + databaseName + " sslmode=disable"
-		dbDsnPasswordMasked = "user=" + databaseUser + " password=******** host=" + databaseHost + " port=" + databasePort + " dbname=" + databaseName + " sslmode=disable"
+		properties := map[string]string{
+			"user": databaseUser,
+			"password": databasePassword,
+			"host": databaseHost,
+			"port": databasePort,
+			"dbname": databaseName,
+			"sslmode": getEnvOr("AIRFLOW_PROMETHEUS_POSTGRES_SSL_MODE", "disable"),
+			"sslcert": getEnvOr("AIRFLOW_PROMETHEUS_POSTGRES_SSL_CERT", ""),
+			"sslkey": getEnvOr("AIRFLOW_PROMETHEUS_POSTGRES_SSL_KEY", ""),
+			"sslrootcert": getEnvOr("AIRFLOW_PROMETHEUS_POSTGRES_SSL_ROOT_CERT", ""),
+		}
+
+		dbDsn = createPostgresDsn(properties)
+
+		if properties["password"] != "" {
+			properties["password"] = "********"
+		}
+		dbDsnPasswordMasked = createPostgresDsn(properties)
 	}
 }
 
@@ -66,4 +83,15 @@ func getEnvOr(key string, defaultValue string) string {
 	}
 
 	return defaultValue
+}
+
+func createPostgresDsn(properties map[string]string) string {
+	list := make([]string, 0)
+	for key, value := range properties {
+		if value != "" {
+			list = append(list, key + "=" + value)
+		}
+	}
+
+	return strings.Join(list, " ")
 }
