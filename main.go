@@ -10,9 +10,10 @@ import (
 )
 
 var (
-	addr     string
-	dbDriver string
-	dbDsn    string
+	addr                string
+	dbDriver            string
+	dbDsn               string
+	dbDsnPasswordMasked string
 )
 
 func main() {
@@ -20,7 +21,7 @@ func main() {
 	log.Print("Starting airflow-exporter")
 	loadEnv()
 
-	log.Print("Connecting to: ", dbDriver, "://", dbDsn)
+	log.Print("Connecting to: ", dbDriver, "://", dbDsnPasswordMasked)
 	c := newCollector(dbDriver, dbDsn)
 	prometheus.Register(c)
 
@@ -52,8 +53,10 @@ func loadEnv() {
 
 	if databaseBackend == "mysql" {
 		dbDsn = databaseUser + ":" + databasePassword + "@(" + databaseHost + ":" + databasePort + ")/" + databaseName
+		dbDsnPasswordMasked = databaseUser + ":********@(" + databaseHost + ":" + databasePort + ")/" + databaseName
 	} else if databaseBackend == "postgres" {
 		dbDsn = "user=" + databaseUser + " password=" + databasePassword + " host=" + databaseHost + " port=" + databasePort + " dbname=" + databaseName + " sslmode=disable"
+		dbDsnPasswordMasked = "user=" + databaseUser + " password=******** host=" + databaseHost + " port=" + databasePort + " dbname=" + databaseName + " sslmode=disable"
 	}
 }
 
