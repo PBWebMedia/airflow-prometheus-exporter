@@ -21,6 +21,7 @@ type collector struct {
 	eventTotal      *prometheus.Desc
 	scrapeFailures  *prometheus.Desc
 	dagRunStates    *prometheus.Desc
+	dagRunTimes     *prometheus.Desc
 	poolSlots       *prometheus.Desc
 	failureCount    int
 }
@@ -51,6 +52,11 @@ type dagRunState struct {
 	state string
 }
 
+type dagRunTime struct {
+	dag  string
+	time float64
+}
+
 type poolSlot struct {
 	name string
 	size float64
@@ -60,6 +66,7 @@ type metrics struct {
 	dagList      []dag
 	eventTotals  []eventTotal
 	dagRunStates []dagRunState
+	dagRunTimes  []dagRunTime
 	poolSlots    []poolSlot
 }
 
@@ -85,6 +92,7 @@ func newCollector(dbDriver string, dbDsn string) *collector {
 		eventTotal:     newFuncMetric("event_total", "Total events per DAG, task and event type", []string{"dag", "task", "event"}),
 		scrapeFailures: newFuncMetric("scrape_failures_total", "Number of errors while scraping airflow database", nil),
 		dagRunStates:   newFuncMetric("dag_run_state", "Number of DAG runs per DAG and state", []string{"dag", "state"}),
+		dagRunTimes:    newFuncMetric("dag_current_run_time", "Current running time of DAG", []string{"dag"}),
 		poolSlots:      newFuncMetric("pool_slots", "Pool name with slot size", []string{"name"}),
 	}
 }
@@ -96,6 +104,7 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.eventTotal
 	ch <- c.scrapeFailures
 	ch <- c.dagRunStates
+	ch <- c.dagRunTimes
 	ch <- c.poolSlots
 }
 
@@ -130,6 +139,10 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(c.dagRunStates, prometheus.GaugeValue, st.count, st.dag, st.state)
 	}
 
+	for _, st := range m.dagRunTimes {
+		ch <- prometheus.MustNewConstMetric(c.dagRunTimes, prometheus.GaugeValue, st.time, st.dag)
+	}
+
 	for _, st := range m.poolSlots {
 		ch <- prometheus.MustNewConstMetric(c.poolSlots, prometheus.GaugeValue, st.size, st.name)
 	}
@@ -157,6 +170,11 @@ func getData(c *collector) (metrics, error) {
 	}
 
 	m.dagRunStates, err = getDagRunStateData(db)
+	if err != nil {
+		return m, err
+	}
+
+	m.dagRunTimes, err = getDagRunTimeData(db)
 	if err != nil {
 		return m, err
 	}
@@ -300,6 +318,39 @@ func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
 				state: state,
 			})
 		}
+	}
+
+	return drsList, nil
+}
+
+func getDagRunTimeData(db *sql.DB) ([]dagRunTime, error) {
+
+	rows, err := db.Query(`SELECT COALESCE(dag.dag_id,''), COALESCE(IFNULL(UNIX_TIMESTAMP() - UNIX_TIMESTAMP(min_execution_time), -1), '')
+                         FROM dag
+                         LEFT JOIN (
+                           SELECT dag_id, min(start_date) AS min_execution_time
+                           FROM dag_run
+                           WHERE state='running'
+                           GROUP BY dag_id
+                         ) AS running_dags
+                         ON dag.dag_id = running_dags.dag_id
+                         WHERE is_subdag=0
+                         AND is_paused=0`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var drsList []dagRunTime
+	for rows.Next() {
+		var drs dagRunTime
+
+		err := rows.Scan(&drs.dag, &drs.time)
+		if err != nil {
+			return nil, err
+		}
+
+		drsList = append(drsList, drs)
 	}
 
 	return drsList, nil
