@@ -325,17 +325,28 @@ func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
 
 func getDagRunTimeData(db *sql.DB) ([]dagRunTime, error) {
 
-	rows, err := db.Query(`SELECT COALESCE(dag.dag_id,''), COALESCE(IFNULL(UNIX_TIMESTAMP() - UNIX_TIMESTAMP(min_execution_time), -1), '')
-                         FROM dag
-                         LEFT JOIN (
-                           SELECT dag_id, min(start_date) AS min_execution_time
-                           FROM dag_run
-                           WHERE state='running'
-                           GROUP BY dag_id
-                         ) AS running_dags
-                         ON dag.dag_id = running_dags.dag_id
-                         WHERE is_subdag=0
-                         AND is_paused=0`)
+	databasePreparedSelectSyntax := map[string]string{
+		"mysql":    "SELECT COALESCE(dag.dag_id,''), COALESCE(IFNULL(UNIX_TIMESTAMP() - UNIX_TIMESTAMP(min_execution_time), -1), 0)",
+		"postgres": "SELECT COALESCE(dag.dag_id,''), COALESCE(extract(epoch from now()) - extract(epoch from min_execution_time), 0)",
+	}
+
+	databasePreparedWhereSyntax := map[string]string{
+		"mysql":    "WHERE is_subdag=0 AND is_paused=0;",
+		"postgres": "WHERE is_subdag=false AND is_paused=false;",
+	}
+
+	preparedStmt := databasePreparedSelectSyntax[dbDriver] +
+		" FROM dag" +
+		" LEFT JOIN (" +
+		" SELECT dag_id, min(start_date) AS min_execution_time" +
+		" FROM dag_run" +
+		" WHERE state='running'" +
+		" GROUP BY dag_id" +
+		" ) AS running_dags" +
+		" ON dag.dag_id = running_dags.dag_id " +
+		databasePreparedWhereSyntax[dbDriver]
+
+	rows, err := db.Query(preparedStmt)
 	if err != nil {
 		return nil, err
 	}
