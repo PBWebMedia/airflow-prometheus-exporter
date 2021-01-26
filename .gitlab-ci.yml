@@ -13,7 +13,6 @@ fmt:
   before_script:
     - go version
   script:
-    - apk add --no-cache git
     - go get || true
     - gofmt -l -s -e .
     - exit $(gofmt -l -s -e . | wc -l)
@@ -23,7 +22,6 @@ lint:
   before_script:
     - go version
   script:
-    - apk add --no-cache git
     - go get -u golang.org/x/lint/golint
     - golint -set_exit_status
 
@@ -32,7 +30,6 @@ test:
   before_script:
     - go version
   script:
-    - apk add --no-cache git
     - go get || true
     - go test -cover
   coverage: '/^coverage:\s(\d+(?:\.\d+)?%)/'
@@ -42,7 +39,6 @@ vet:
   before_script:
     - go version
   script:
-    - apk add --no-cache git
     - go get || true
     - go vet
 
@@ -51,7 +47,6 @@ compile:
   before_script:
     - go version
   script:
-    - apk add --no-cache git
     - go get || true
     - CGO_ENABLED=0 go build -o airflow-prometheus-exporter .
   artifacts:
