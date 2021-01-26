@@ -1,4 +1,4 @@
-image: golang:1.10.0-alpine3.7
+image: golang:1-buster
 
 stages:
   - validate
@@ -63,7 +63,7 @@ compile:
 
 build-docker:
   stage: image
-  image: docker
+  image: docker:latest
   services:
     - docker:dind
   before_script:
@@ -78,7 +78,6 @@ build-docker:
     - compile
   variables:
     GIT_STRATEGY: none
-    DOCKER_DRIVER: overlay2
   tags:
     - docker-images
 
