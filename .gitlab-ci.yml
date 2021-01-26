@@ -1,4 +1,4 @@
-image: docker:latest
+image: golang:1.10.0-alpine3.7
 
 stages:
   - validate
@@ -10,7 +10,6 @@ variables:
 
 fmt:
   stage: validate
-  image: golang:1.10.0-alpine3.7
   before_script:
     - go version
   script:
@@ -21,7 +20,6 @@ fmt:
 
 lint:
   stage: validate
-  image: golang:1.10.0-alpine3.7
   before_script:
     - go version
   script:
@@ -31,7 +29,6 @@ lint:
 
 test:
   stage: validate
-  image: golang:1.10.0-alpine3.7
   before_script:
     - go version
   script:
@@ -42,7 +39,6 @@ test:
 
 vet:
   stage: validate
-  image: golang:1.10.0-alpine3.7
   before_script:
     - go version
   script:
@@ -52,7 +48,6 @@ vet:
 
 compile:
   stage: build
-  image: golang:1.10.0-alpine3.7
   before_script:
     - go version
   script:
@@ -68,10 +63,12 @@ compile:
 
 build-docker:
   stage: image
+  image: docker
   services:
     - docker:dind
   before_script:
-    - docker info
+    - mkdir -p $HOME/.docker
+    - echo $DOCKER_AUTH_CONFIG > $HOME/.docker/config.json
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
   script:
     - if [ "${CI_COMMIT_REF_SLUG}" == "master" ]; then IMAGE_TAG="latest"; else IMAGE_TAG="${CI_COMMIT_REF_SLUG}"; fi
