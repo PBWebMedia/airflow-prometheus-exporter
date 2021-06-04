@@ -50,7 +50,6 @@ compile:
     - go get || true
     - CGO_ENABLED=0 go build -o airflow-prometheus-exporter .
   artifacts:
-    name: "artifact_{$CI_COMMIT_SHA}"
     expire_in: 30 min
     paths:
       - airflow-prometheus-exporter
