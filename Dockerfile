@@ -1,4 +1,7 @@
 FROM scratch
 
-COPY ./airflow-prometheus-exporter /airflow-prometheus-exporter
+ARG TARGETPLATFORM
+
+COPY /build/$TARGETPLATFORM/ /
+
 ENTRYPOINT ["/airflow-prometheus-exporter"]
