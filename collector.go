@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"math"
@@ -102,7 +103,8 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 func (c *collector) Collect(ch chan<- prometheus.Metric) {
 	up := 1.0
 
-	m, err := getData(c)
+	ctx := context.Background()
+	m, err := getData(ctx, c)
 	if err != nil {
 		up = 0.0
 		c.failureCount++
@@ -133,35 +135,33 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 	for _, st := range m.poolSlots {
 		ch <- prometheus.MustNewConstMetric(c.poolSlots, prometheus.GaugeValue, st.size, st.name)
 	}
-
-	return
 }
 
-func getData(c *collector) (metrics, error) {
+func getData(ctx context.Context, c *collector) (metrics, error) {
 	var m metrics
 
 	db, err := sql.Open(c.dbDriver, c.dbDsn)
 	if err != nil {
 		return m, err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
-	m.dagList, err = getDagData(db)
+	m.dagList, err = getDagData(ctx, db)
 	if err != nil {
 		return m, err
 	}
 
-	m.eventTotals, err = getEventTotalData(&c.eventTotalCache, db)
+	m.eventTotals, err = getEventTotalData(ctx, &c.eventTotalCache, db)
 	if err != nil {
 		return m, err
 	}
 
-	m.dagRunStates, err = getDagRunStateData(db)
+	m.dagRunStates, err = getDagRunStateData(ctx, db)
 	if err != nil {
 		return m, err
 	}
 
-	m.poolSlots, err = getPoolSlotData(db)
+	m.poolSlots, err = getPoolSlotData(ctx, db)
 	if err != nil {
 		return m, err
 	}
@@ -169,12 +169,12 @@ func getData(c *collector) (metrics, error) {
 	return m, err
 }
 
-func getDagData(db *sql.DB) ([]dag, error) {
-	rows, err := db.Query("SELECT dag_id, is_paused, is_subdag, is_active FROM dag")
+func getDagData(ctx context.Context, db *sql.DB) ([]dag, error) {
+	rows, err := db.QueryContext(ctx, "SELECT dag_id, is_paused, is_subdag, is_active FROM dag")
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var dagList []dag
 	for rows.Next() {
@@ -188,13 +188,13 @@ func getDagData(db *sql.DB) ([]dag, error) {
 		dagList = append(dagList, dag)
 	}
 
-	return dagList, nil
+	return dagList, rows.Err()
 }
 
 func formulateEventTotalDataPreparedStatement() string {
 	databasePreparedSyntax := map[string]string{
-		"mysql":    "WHERE id > ?",
-		"postgres": "WHERE id > $1",
+		driverMySQL:    "WHERE id > ?",
+		driverPostgres: "WHERE id > $1",
 	}
 
 	preparedStmt := "SELECT COUNT(*), COALESCE(dag_id, ''), COALESCE(task_id, ''), event, MAX(id) FROM log "
@@ -204,24 +204,23 @@ func formulateEventTotalDataPreparedStatement() string {
 	return preparedStmt
 }
 
-func getEventTotalData(c *eventTotalCache, db *sql.DB) ([]eventTotal, error) {
+func getEventTotalData(ctx context.Context, c *eventTotalCache, db *sql.DB) ([]eventTotal, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	preparedStmt := formulateEventTotalDataPreparedStatement()
 
-	stmt, err := db.Prepare(preparedStmt)
-
+	stmt, err := db.PrepareContext(ctx, preparedStmt)
 	if err != nil {
 		return nil, err
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
-	rows, err := stmt.Query(c.lastEventID)
+	rows, err := stmt.QueryContext(ctx, c.lastEventID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var id float64
 	for rows.Next() {
@@ -241,6 +240,9 @@ func getEventTotalData(c *eventTotalCache, db *sql.DB) ([]eventTotal, error) {
 			c.data[et.dag][et.task] = make(map[string]float64)
 		}
 		c.data[et.dag][et.task][et.event] += float64(et.count)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	var etList []eventTotal
@@ -268,13 +270,12 @@ func defaultDagRunStates() map[string]float64 {
 	}
 }
 
-func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
-
-	rows, err := db.Query("SELECT COUNT(*), COALESCE(dag_id, ''), COALESCE(state, '') FROM dag_run GROUP BY dag_id, state")
+func getDagRunStateData(ctx context.Context, db *sql.DB) ([]dagRunState, error) {
+	rows, err := db.QueryContext(ctx, "SELECT COUNT(*), COALESCE(dag_id, ''), COALESCE(state, '') FROM dag_run GROUP BY dag_id, state")
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var drsRunStates = make(map[string]map[string]float64)
 	for rows.Next() {
@@ -289,6 +290,9 @@ func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
 			drsRunStates[drs.dag] = defaultDagRunStates()
 		}
 		drsRunStates[drs.dag][drs.state] = float64(drs.count)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	var drsList []dagRunState
@@ -305,13 +309,12 @@ func getDagRunStateData(db *sql.DB) ([]dagRunState, error) {
 	return drsList, nil
 }
 
-func getPoolSlotData(db *sql.DB) ([]poolSlot, error) {
-
-	rows, err := db.Query("SELECT pool, slots FROM slot_pool")
+func getPoolSlotData(ctx context.Context, db *sql.DB) ([]poolSlot, error) {
+	rows, err := db.QueryContext(ctx, "SELECT pool, slots FROM slot_pool")
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var poolSlots []poolSlot
 	for rows.Next() {
@@ -325,5 +328,5 @@ func getPoolSlotData(db *sql.DB) ([]poolSlot, error) {
 		poolSlots = append(poolSlots, ps)
 	}
 
-	return poolSlots, nil
+	return poolSlots, rows.Err()
 }

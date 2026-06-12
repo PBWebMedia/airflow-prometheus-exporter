@@ -5,9 +5,15 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+const (
+	driverMySQL    = "mysql"
+	driverPostgres = "postgres"
 )
 
 var (
@@ -24,24 +30,30 @@ func main() {
 
 	log.Print("Connecting to: ", dbDriver, "://", dbDsnPasswordMasked)
 	c := newCollector(dbDriver, dbDsn)
-	prometheus.Register(c)
+	if err := prometheus.Register(c); err != nil {
+		log.Fatal("Failed to register collector: ", err)
+	}
 
 	log.Print("Listening on: ", addr)
 	http.Handle("/metrics", promhttp.Handler())
-	log.Fatal(http.ListenAndServe(addr, nil))
+	server := &http.Server{
+		Addr:              addr,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	log.Fatal(server.ListenAndServe())
 }
 
 func loadEnv() {
 	databaseDefaultPort := map[string]string{
-		"mysql":    "3306",
-		"postgres": "5432",
+		driverMySQL:    "3306",
+		driverPostgres: "5432",
 	}
 
-	databaseBackend := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_BACKEND", "mysql")
+	databaseBackend := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_BACKEND", driverMySQL)
 	databaseHost := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_HOST", "localhost")
 	databasePort := getEnvOr("AIRFLOW_PROMETHEUS_DATABASE_PORT", databaseDefaultPort[databaseBackend])
 
-	if !(databaseBackend == "mysql" || databaseBackend == "postgres") {
+	if databaseBackend != driverMySQL && databaseBackend != driverPostgres {
 		log.Fatal("airflow-exporter: Unknown database backend specified: ", databaseBackend)
 	}
 
@@ -52,10 +64,11 @@ func loadEnv() {
 	addr = getEnvOr("AIRFLOW_PROMETHEUS_LISTEN_ADDR", ":9112")
 	dbDriver = databaseBackend
 
-	if databaseBackend == "mysql" {
+	switch databaseBackend {
+	case driverMySQL:
 		dbDsn = databaseUser + ":" + databasePassword + "@(" + databaseHost + ":" + databasePort + ")/" + databaseName
 		dbDsnPasswordMasked = databaseUser + ":********@(" + databaseHost + ":" + databasePort + ")/" + databaseName
-	} else if databaseBackend == "postgres" {
+	case driverPostgres:
 		properties := map[string]string{
 			"user":        databaseUser,
 			"password":    databasePassword,

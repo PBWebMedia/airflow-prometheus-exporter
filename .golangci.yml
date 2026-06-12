@@ -1,0 +1,68 @@
+version: "2"
+
+formatters:
+  enable:
+    - goimports
+
+linters:
+  enable:
+    # Core
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+    # Error handling
+    - errorlint
+    - nilerr
+    - nilnil
+    #- wrapcheck
+
+    # Security
+    - gosec
+    - forcetypeassert
+    - contextcheck
+    - noctx
+    - makezero
+    - durationcheck
+    - bodyclose
+    - sqlclosecheck
+    - rowserrcheck
+    - exhaustive
+    - fatcontext
+    - reassign
+
+    # Style & modernization
+    - gocritic
+    - revive
+    - modernize
+    - unconvert
+    - unparam
+    - nestif
+    - prealloc
+    - predeclared
+    - usestdlibvars
+    - copyloopvar
+
+    # Testing
+    - testifylint
+
+    # Code hygiene
+    - misspell
+    - dupword
+    - errname
+    - goconst
+    - whitespace
+    - nolintlint
+
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+
+  exclusions:
+    paths:
+      - mock_.*\.go
+      - fake_.*\.go
