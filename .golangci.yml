@@ -57,6 +57,10 @@ linters:
     - nolintlint
 
   settings:
+    goconst:
+      # Only suggest a constant when a string is repeated many times; a handful
+      # of occurrences is not worth extracting.
+      min-occurrences: 5
     revive:
       rules:
         - name: exported
