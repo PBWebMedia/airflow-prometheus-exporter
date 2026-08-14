@@ -62,6 +62,7 @@ build-docker:
     - compile-linux-arm64
   variables:
     GIT_STRATEGY: none
+    BUILDX_NO_DEFAULT_OCI_ARTIFACT: "true"
   tags:
     - docker-images
 
