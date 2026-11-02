@@ -35,7 +35,6 @@ type eventTotalCache struct {
 type dag struct {
 	dag    string
 	paused bool
-	subdag bool
 	active bool
 }
 
@@ -169,8 +168,32 @@ func getData(ctx context.Context, c *collector) (metrics, error) {
 	return m, err
 }
 
+func formulateDagStaleColumnStatement() string {
+	databaseSchema := map[string]string{
+		driverMySQL:    "DATABASE()",
+		driverPostgres: "current_schema()",
+	}
+
+	return "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = " + databaseSchema[dbDriver] +
+		" AND table_name = 'dag' AND column_name = 'is_stale'"
+}
+
+// Airflow 3 replaced is_active with its inverse is_stale and dropped subdags.
+func formulateDagStatement(hasStaleColumn bool) string {
+	if hasStaleColumn {
+		return "SELECT dag_id, is_paused, NOT is_stale FROM dag"
+	}
+
+	return "SELECT dag_id, is_paused, is_active FROM dag"
+}
+
 func getDagData(ctx context.Context, db *sql.DB) ([]dag, error) {
-	rows, err := db.QueryContext(ctx, "SELECT dag_id, is_paused, is_subdag, is_active FROM dag")
+	var staleColumnCount int
+	if err := db.QueryRowContext(ctx, formulateDagStaleColumnStatement()).Scan(&staleColumnCount); err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, formulateDagStatement(staleColumnCount > 0))
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +203,7 @@ func getDagData(ctx context.Context, db *sql.DB) ([]dag, error) {
 	for rows.Next() {
 		var dag dag
 
-		err := rows.Scan(&dag.dag, &dag.paused, &dag.subdag, &dag.active)
+		err := rows.Scan(&dag.dag, &dag.paused, &dag.active)
 		if err != nil {
 			return nil, err
 		}
